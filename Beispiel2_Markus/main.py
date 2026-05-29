@@ -1,6 +1,7 @@
 from integrate import T2, T6, T8
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 EPS = 2.22045e-16
@@ -119,6 +120,9 @@ def test_function(ax, test_case):
 
 
 def main():
+    plot_dir = "plots"
+    if not os.path.isdir(plot_dir):
+        os.makedirs(plot_dir)
 
     glatt = [
         TestCase(np.sin,                        0, np.pi,   2, r"$\sin(x)$ auf $[0,\pi]$"),
@@ -151,7 +155,7 @@ def main():
     fig.supylabel("Absoluter Fehler (logarithmisch)")
     fig.supxlabel("Anzahl der benötigten Funktionsauswertungen $n$")
     fig.tight_layout(rect=(0.01, 0.01, 1, 1))
-    plt.savefig("Beispiel2_Markus/plots/glatt.png")
+    plt.savefig(os.path.join(plot_dir, "glatt.png"))
     plt.close()
 
     fig, axs = plt.subplots(nrows=len(weniger_glatt)//2, ncols=2, figsize=(14, 10))
@@ -162,7 +166,7 @@ def main():
     fig.supylabel("Absoluter Fehler (logarithmisch)")
     fig.supxlabel("Anzahl der benötigten Funktionsauswertungen $n$")
     fig.tight_layout(rect=(0.01, 0.01, 1, 1))
-    plt.savefig("Beispiel2_Markus/plots/weniger_glatt.png")
+    plt.savefig(os.path.join(plot_dir, "weniger_glatt.png"))
     plt.close()
 
 
