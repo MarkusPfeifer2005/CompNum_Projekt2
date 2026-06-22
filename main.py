@@ -1,4 +1,4 @@
-from integrate import T2, T6, T8
+from integrate import T2, T6, T8, adaptive_integration
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -74,9 +74,10 @@ def draw_tol(plotter):
 
 
 def add_threshold_ticks(ax, ns, errors, threshold):
+    min_abs = (ax.get_xticks()[-1] - ax.get_xticks()[0])/15
     cross = next((n for n, e in zip(ns, errors) if e < threshold), None)
     if cross is not None:
-        ticks = [t for t in ax.get_xticks() if abs(t - cross) > 10]
+        ticks = [t for t in ax.get_xticks() if abs(t - cross) > min_abs]
         ax.set_xticks(sorted(set(ticks + [cross])))
     return cross
 
@@ -96,6 +97,18 @@ def test(method: Integral, test_case: TestCase, min_n=10, max_n = 500):
                     n) - test_case.solution)
         )
     return N, abs_error
+
+def adaptive_test(test_case: TestCase):
+    abs_error = []
+    N = []
+    estimated_error = []
+
+    for T_h, n, err_estimation in adaptive_integration(test_case.func, test_case.a,
+                                       test_case.b, np.float64(TOL)):
+        N.append(n)
+        abs_error.append(abs(T_h - test_case.solution))
+        estimated_error.append(err_estimation)
+    return N, abs_error, estimated_error
 
 
 def test_function(ax, test_case):
@@ -118,8 +131,25 @@ def test_function(ax, test_case):
     ax.set_xlim((0, 500))
     ax.legend()
 
+def adaptive_test_function(ax, test_case: TestCase):
+    draw_tol(ax)
+    ax.set_title(test_case.label)
+
+    trapez_n, trapez_e, est_err = adaptive_test(test_case)
+    ax.plot(trapez_n, est_err, label="geschätzter Fehler", marker="o",
+            c="tab:orange")
+    ax.plot(trapez_n, trapez_e, label="echter Fehler", marker="o",
+            c="tab:blue")
+    add_threshold_ticks(ax, trapez_n, trapez_e, TOL)
+
+    ax.set_yscale("log")
+    ax.legend()
+
 
 def main():
+    ##############
+    # Beispiel 2 #
+    ##############
     plot_dir = "plots"
     if not os.path.isdir(plot_dir):
         os.makedirs(plot_dir)
@@ -133,18 +163,18 @@ def main():
         TestCase(lambda x: x**5 - 3*x**3 + 2*x, 0, 2,       16/6,     r"$x^5 - 3x^3 + 2x$ auf $[0,2]$"),
     ]
     weniger_glatt = [
-        TestCase(np.sqrt,                                            1e-10, 1,
-                 2/3,                  r"$\sqrt{x}$ auf $[0,1]$, $f'(0)=\infty$"),
-        TestCase(np.abs,                                            -1,    1,
-                 1,                    r"$|x|$ auf $[-1,1]$, Knick bei $0$"),
-        TestCase(lambda x: np.abs(x)**3,                            -1,    1,
-                 0.5,                  r"$|x|^3$ auf $[-1,1]$, $f'''$ discts."),
-        TestCase(lambda x: x*np.log(np.where(x > 0, x, 1e-300)),   1e-10, 1,
-                 -0.25,                 r"$x\ln(x)$ auf $[0,1]$, $f'(0)=-\infty$"),
-        TestCase(lambda x: 1/(1 + 25*x**2),                        -1,    1,
-                 2/5*np.arctan(5),     r"$\frac{1}{1+25x^2}$ auf $[-1,1]$, Runge"),
-        TestCase(lambda x: np.sqrt(np.abs(x)),                      -1,    1,
-                 4/3,                  r"$\sqrt{|x|}$ auf $[-1,1]$, $+\infty$ Abl."),
+        TestCase(np.sqrt, 1e-10, 1, 2/3,
+                 r"$\sqrt{x}$ auf $[0,1]$, $f'(0)=\infty$"),
+        TestCase(np.abs, -1, 1, 1,
+                 r"$|x|$ auf $[-1,1]$, Knick bei $0$"),
+        TestCase(lambda x: np.abs(x)**3, -1, 1, 0.5,
+                 r"$|x|^3$ auf $[-1,1]$, $f'''$ diskontinuierlich"),
+        TestCase(lambda x: x*np.log(np.where(x > 0, x, 1e-300)), 1e-10, 1, -0.25,
+                 r"$x\ln(x)$ auf $[0,1]$, $f'(0)=-\infty$"),
+        TestCase(lambda x: 1/(1 + 25*x**2), -1, 1, 2/5*np.arctan(5),
+                 r"$\frac{1}{1+25x^2}$ auf $[-1,1]$, Runge"),
+        TestCase(lambda x: np.sqrt(np.abs(x)), -1, 1, 4/3,
+                 r"$\sqrt{|x|}$ auf $[-1,1]$, $+\infty$ Abl."),
     ]
 
     fig, axs = plt.subplots(nrows=len(glatt)//2, ncols=2, figsize=(14, 10))
@@ -169,8 +199,30 @@ def main():
     plt.savefig(os.path.join(plot_dir, "weniger_glatt.png"))
     plt.close()
 
+    ##############
+    # Beispiel 6 #
+    ##############
+    fig, axs = plt.subplots(nrows=len(glatt)//2, ncols=2, figsize=(14, 10))
+    fig.suptitle("Fehlerentwicklung der Trapezregel bei glatten Funktionen (adaptiv)")
+    for i in range(0, len(glatt), 2):
+        adaptive_test_function(axs[i//2, 0], glatt[i])
+        adaptive_test_function(axs[i//2, 1], glatt[i+1])
+    fig.supylabel("Absoluter Fehler (logarithmisch)")
+    fig.supxlabel("Anzahl der benötigten Funktionsauswertungen $n$")
+    fig.tight_layout(rect=(0.01, 0.01, 1, 1))
+    plt.savefig(os.path.join(plot_dir, "glatt_adaptiv.png"))
+    plt.close()
 
-
+    fig, axs = plt.subplots(nrows=len(glatt)//2, ncols=2, figsize=(14, 10))
+    fig.suptitle("Fehlerentwicklung der Trapezregel bei weniger glatten Funktionen (adaptiv)")
+    for i in range(0, len(weniger_glatt), 2):
+        adaptive_test_function(axs[i//2, 0], weniger_glatt[i])
+        adaptive_test_function(axs[i//2, 1], weniger_glatt[i+1])
+    fig.supylabel("Absoluter Fehler (logarithmisch)")
+    fig.supxlabel("Anzahl der benötigten Funktionsauswertungen $n$")
+    fig.tight_layout(rect=(0.01, 0.01, 1, 1))
+    plt.savefig(os.path.join(plot_dir, "weniger_glatt_adaptiv.png"))
+    plt.close()
 
 
 if __name__ == "__main__":
